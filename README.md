@@ -64,9 +64,9 @@ usr/plugins/GravatarCache/cache/
 
 3. 后台 → 插件 → 启用 **GravatarCache**。
 
-启用后，后台 **控制台 → 头像缓存** 中会出现本插件的面板，可查看命中情况、磁盘占用，并手动清理。
+   启用后，后台 **控制台 → 头像缓存** 中会出现本插件的面板，可查看命中情况、磁盘占用，并手动清理。
 
-> 面板放在「控制台」菜单下，遵循 Typecho 官方文档对插件面板的建议：优先使用已有的顶级菜单（`1` 控制台、`2` 撰写、`3` 管理、`4` 设置），只有确实需要独立入口时才用 `Helper::addMenu()` 新建顶级菜单。见 [路由、Action 与后台面板](https://docs.typecho.org/develop/plugin/routes-actions/)。
+   > 面板放在「控制台」菜单下，遵循 Typecho 官方文档对插件面板的建议：优先使用已有的顶级菜单（`1` 控制台、`2` 撰写、`3` 管理、`4` 设置），只有确实需要独立入口时才用 `Helper::addMenu()` 新建顶级菜单。见 [路由、Action 与后台面板](https://docs.typecho.org/develop/plugin/routes-actions/)。
 
 ## 设置项
 
