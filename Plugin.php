@@ -1693,7 +1693,7 @@ HTACCESS;
             self::PANEL_MENU_INDEX,
             self::PANEL_FILE,
             _t('头像缓存'),
-            _t('Gravatar 本地缓存'),
+            _t('头像本地缓存'),
             'administrator'
         );
     }

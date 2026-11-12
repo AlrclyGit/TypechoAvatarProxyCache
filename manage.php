@@ -229,21 +229,20 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
                 <ul class="typecho-option">
                     <li>
                         <p class="description">
-                            <?php _e('插件启用后，Typecho 生成的 Gravatar 地址会被自动改写为本站的'
+                            <?php _e('插件启用后，Typecho 请求的头像地址会被自动改写为本站的'
                                 . ' <code>/gravatar-cache/</code> 地址，评论头像、作者头像与后台头像一起生效，'
                                 . '无需修改主题。'); ?>
                         </p>
                     </li>
                     <li>
                         <p class="description">
-                            <?php _e('头像第一次被访问时会从 Gravatar 下载并缓存到本地；'
-                                . '之后所有访客都直接由本站返回，不再依赖 gravatar.com 的连通性。'); ?>
+                            <?php _e('头像第一次被访问时会从设置的头像源下载并缓存到本地；'
+                                . '之后所有访客都直接由本站返回，不再依赖头像源的连通性。'); ?>
                         </p>
                     </li>
                     <li>
                         <p class="description">
-                            <?php _e('缓存过期后不会立刻删除，而是在下一次有人访问该头像时重新回源刷新；'
-                                . '长期无人访问的过期文件由自动清理回收。'); ?>
+                            <?php _e('缓存过期后不会立刻删除，而是在下一次有人访问该头像或者进入此面板时重新回源刷新；'); ?>
                         </p>
                     </li>
                     <li>
