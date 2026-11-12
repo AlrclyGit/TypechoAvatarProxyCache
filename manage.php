@@ -22,7 +22,7 @@ if (!$user->pass('administrator', true)) {
 }
 
 $pluginClass = Plugin::class;
-$panelUrl = \Utils\Helper::url(Plugin::NAME . '/manage.php');
+$panelUrl = Plugin::panelUrl();
 
 /**
  * CSRF token
@@ -81,7 +81,7 @@ $fallback = $pluginClass::fallbackInfo();
 $stats = $pluginClass::stats();
 $cacheDir = $pluginClass::cacheDir();
 $diagnostics = $pluginClass::diagnostics();
-$settingsUrl = $options->adminUrl('options-plugin.php?config=' . Plugin::NAME, true);
+$settingsUrl = Plugin::adminUrl('options-plugin.php?config=' . urlencode(Plugin::NAME));
 
 /** 字节数转可读大小 */
 $humanSize = static function (int $bytes): string {

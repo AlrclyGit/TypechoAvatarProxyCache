@@ -181,6 +181,37 @@ class Plugin implements PluginInterface
     }
 
     /**
+     * 生成后台地址
+     *
+     * Widget\Options::adminUrl() 是模板里用的「输出型」助手：它把地址直接 echo 出去，
+     * 没有返回值。拿它做字符串拼接只会得到 null —— 轻则链接变成空地址（点了跳回当前页），
+     * 重则在表单渲染前把一串地址打在页面顶部，把后台 UI 弄乱。
+     * 所以这里统一用 adminUrl 属性拼接，并顺手规整掉结尾多余的斜杠。
+     *
+     * @param string $path 相对后台目录的路径，可以带查询串
+     * @return string
+     */
+    public static function adminUrl(string $path = ''): string
+    {
+        $base = rtrim((string) \Widget\Options::alloc()->adminUrl, '/');
+
+        return '' === $path ? $base . '/' : $base . '/' . ltrim($path, '/');
+    }
+
+    /**
+     * 本插件后台面板的地址
+     *
+     * 与 Helper::addPanel() 登记的地址完全一致：extending.php?panel={urlencode(PANEL_FILE)}，
+     * 这样设置页里的跳转链接、面板自身的表单提交与重定向都指向同一个地址。
+     *
+     * @return string
+     */
+    public static function panelUrl(): string
+    {
+        return self::adminUrl('extending.php?panel=' . urlencode(self::PANEL_FILE));
+    }
+
+    /**
      * 插件设置
      *
      * @param Form $form
@@ -241,9 +272,7 @@ class Plugin implements PluginInterface
         $timeout->addRule('isInteger', _t('回源超时必须是整数'));
         $form->addInput($timeout);
 
-        $panelUrl = htmlspecialchars(
-            \Widget\Options::alloc()->adminUrl('extending.php?panel=' . urlencode(self::PANEL_FILE))
-        );
+        $panelUrl = htmlspecialchars(self::panelUrl());
 
         $cleanup = new \Typecho\Widget\Helper\Form\Element\Radio(
             'autoCleanup',
