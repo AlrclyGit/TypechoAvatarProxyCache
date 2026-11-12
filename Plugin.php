@@ -97,6 +97,11 @@ class Plugin implements PluginInterface
     public const DEFAULT_DICEBEAR_STYLE = 'waves';
 
     /**
+     * DiceBear 兜底头像的默认地址（官方 API）
+     */
+    public const DEFAULT_DICEBEAR_URL = 'https://api.dicebear.com';
+
+    /**
      * 缓存目录名（位于插件目录内）
      */
     private const CACHE_DIR = 'cache';
@@ -202,6 +207,18 @@ class Plugin implements PluginInterface
                 . '可用样式见 https://www.dicebear.com/styles/。')
         );
         $form->addInput($dicebearStyle);
+
+        $dicebearUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+            'dicebearUrl',
+            null,
+            self::DEFAULT_DICEBEAR_URL,
+            _t('兜底头像地址'),
+            _t('所有头像源都失败时，从这里获取兜底头像。默认使用官方 API（https://api.dicebear.com）；'
+                . '如果自部署了 DiceBear，改成它的地址，例如 https://dicebear.example.com；'
+                . '服务端 API 版本与官方不一致时可带版本路径，例如 https://dicebear.example.com/9.x。'
+                . '注意修改后已缓存的兜底头像会按新地址重新获取。')
+        );
+        $form->addInput($dicebearUrl);
 
         $ttl = new \Typecho\Widget\Helper\Form\Element\Number(
             'ttl',
@@ -316,6 +333,14 @@ class Plugin implements PluginInterface
             return _t('兜底头像样式只能包含字母、数字、下划线和连字符');
         }
 
+        if (isset($settings['dicebearUrl']) && '' !== trim((string) $settings['dicebearUrl'])) {
+            // 允许纯主机名，或主机名 + 版本路径（如 /9.x），其余路径一律不允许
+            if (!preg_match('#^https?://[^/\s]+(/\d+\.x)?/?$#i', trim((string) $settings['dicebearUrl']))) {
+                return _t('兜底头像地址格式不正确，应形如 https://dicebear.example.com'
+                    . '或带版本路径 https://dicebear.example.com/9.x');
+            }
+        }
+
         return null;
     }
 
@@ -385,6 +410,7 @@ class Plugin implements PluginInterface
         return [
             'servers'       => self::DEFAULT_SERVERS,
             'dicebearStyle' => self::DEFAULT_DICEBEAR_STYLE,
+            'dicebearUrl'   => self::DEFAULT_DICEBEAR_URL,
             'ttl'           => '604800',
             'timeout'       => '3',
             'stale'         => '1',
@@ -435,6 +461,16 @@ class Plugin implements PluginInterface
         $style = trim((string) ($settings['dicebearStyle'] ?? ''));
         $settings['dicebearStyle'] = preg_match('/^[A-Za-z0-9_-]+$/', $style)
             ? $style : self::DEFAULT_DICEBEAR_STYLE;
+
+        // DiceBear 兜底地址：填空视为用官方源；只接受主机名或主机名 + 版本路径，其余丢弃
+        $dicebearUrl = rtrim(trim(str_replace("\0", '', (string) ($settings['dicebearUrl'] ?? ''))), '/');
+
+        if ('' === $dicebearUrl) {
+            $dicebearUrl = self::DEFAULT_DICEBEAR_URL;
+        }
+
+        $settings['dicebearUrl'] = preg_match('#^https?://[^/\s]+(/\d+\.x)?$#i', $dicebearUrl)
+            ? $dicebearUrl : self::DEFAULT_DICEBEAR_URL;
 
         $ratio = (int) $settings['cleanupRatio'];
         $settings['cleanupRatio'] = (string) ($ratio >= 0 && $ratio <= 100 ? $ratio : 5);
@@ -641,15 +677,17 @@ class Plugin implements PluginInterface
     /**
      * 计算缓存文件路径
      *
-     * 回源只带 d=404，返回内容由 邮箱 hash + 头像源 唯一决定，
-     * 因此 key 只含这两项：同一个人不管浏览器请求多大尺寸，都命中同一份缓存。
+     * 回源只带 d=404，返回内容由 邮箱 hash + 头像源 + 兜底源 唯一决定，
+     * 因此 key 由这三项组成：同一个人不管浏览器请求多大尺寸，都命中同一份缓存；
+     * 兜底地址变更后，原来按旧地址缓存的兜底头像不会再被误用。
      *
      * @param array $params
      * @return array{data: string, meta: string, fail: string}
      */
     public static function cachePaths(array $params): array
     {
-        $key = md5($params['hash'] . '|' . self::settings()['servers']);
+        $settings = self::settings();
+        $key = md5($params['hash'] . '|' . $settings['servers'] . '|' . $settings['dicebearUrl']);
 
         $dir = self::cacheDir() . '/' . substr($key, 0, 2) . '/' . substr($key, 2, 2);
 
@@ -857,6 +895,8 @@ class Plugin implements PluginInterface
      * DiceBear 兜底头像地址
      *
      * 用邮箱 hash 作为 seed，同一个邮箱永远得到同一张兜底头像。
+     * 兜底地址可在设置里改为自部署实例；填写的地址若未带版本路径，
+     * 默认按官方当前的 10.x 版本拼接。
      *
      * @param array $params
      * @param array $settings
@@ -864,7 +904,17 @@ class Plugin implements PluginInterface
      */
     public static function dicebearUrl(array $params, array $settings): string
     {
-        return 'https://api.dicebear.com/10.x/' . rawurlencode($settings['dicebearStyle'])
+        $base = trim((string) ($settings['dicebearUrl'] ?? ''));
+
+        if ('' === $base) {
+            $base = self::DEFAULT_DICEBEAR_URL;
+        }
+
+        if (!preg_match('#/\d+\.x$#i', $base)) {
+            $base .= '/10.x';
+        }
+
+        return $base . '/' . rawurlencode($settings['dicebearStyle'])
             . '/svg?seed=' . rawurlencode($params['hash']);
     }
 
