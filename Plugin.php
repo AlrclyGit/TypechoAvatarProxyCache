@@ -241,13 +241,18 @@ class Plugin implements PluginInterface
         $timeout->addRule('isInteger', _t('回源超时必须是整数'));
         $form->addInput($timeout);
 
+        $panelUrl = htmlspecialchars(
+            \Widget\Options::alloc()->adminUrl('extending.php?panel=' . urlencode(self::PANEL_FILE))
+        );
+
         $cleanup = new \Typecho\Widget\Helper\Form\Element\Radio(
             'autoCleanup',
             ['1' => _t('开启'), '0' => _t('关闭')],
             '1',
             _t('自动清理过期缓存'),
             _t('开启后，前台请求会按下面的概率触发一次过期文件清理；'
-                . '进入后台插件面板时也会无条件清理一次。关闭后只能手动在面板里清理。')
+                . '进入后台插件面板时也会无条件清理一次。关闭后只能手动在'
+                . '<a href="%s" target="_blank">面板</a>里清理。', $panelUrl)
         );
         $form->addInput($cleanup);
 
