@@ -34,12 +34,12 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
 }
 
 /**
- * Gravatar 头像本地缓存代理
+ * 头像代理本地缓存
  *
- * @package GravatarCache
- * @author alrcly
- * @version 1.0.0
- * @link https://github.com/alrcly/GravatarCache
+ * @package AvatarCache
+ * @author 萧俊介
+ * @version 2.0.0
+ * @link https://www.alrcly.com/post/avatar-cache
  * @since 1.3.0
  */
 class Plugin implements PluginInterface
