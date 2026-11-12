@@ -4,7 +4,7 @@
  * 头像输出 Widget
  *
  * 由路由 /gravatar-cache/[hash] 调用，负责把图片字节返回给浏览器。
- * 处理顺序：本地缓存 → 回源 → 回源失败时降级（旧缓存 / 空白占位图）。
+ * 处理顺序：本地缓存 → 回源 → 回源失败时降级（优先旧缓存，最后空白占位图）。
  */
 
 namespace TypechoPlugin\AvatarCache\Widget;
@@ -92,11 +92,15 @@ class Avatar extends Widget
             AvatarCache::markFail($paths);
         }
 
-        // 3. 降级：可用的旧缓存优先，其次空白占位图
-        if (null !== $cached && '1' === $settings['stale']) {
-            $this->sendFile($paths, $cached, 'STALE', self::FALLBACK_MAX_AGE);
+        // 3. 降级：回源失败时一律优先用旧缓存，实在没有才返回空白占位图。
+        //    降级本身说明头像源出了问题，写一条记录供后台面板提示异常。
+        if (null !== $cached) {
+            $served = $this->sendFile($paths, $cached, 'STALE', self::FALLBACK_MAX_AGE);
+            AvatarCache::recordFallback($served ? 'stale' : 'placeholder');
             return;
         }
+
+        AvatarCache::recordFallback('placeholder');
 
         $placeholder = AvatarCache::placeholder();
         $this->sendBody($placeholder['body'], $placeholder['mime'], 0, 'FALLBACK', self::FALLBACK_MAX_AGE);
@@ -126,8 +130,9 @@ class Avatar extends Widget
      * @param array $cached readCache() 的返回值
      * @param string $state
      * @param int $maxAge
+     * @return bool 是否真的输出了缓存文件（false 表示缓存文件消失、已退化为占位图）
      */
-    private function sendFile(array $paths, array $cached, string $state, int $maxAge): void
+    private function sendFile(array $paths, array $cached, string $state, int $maxAge): bool
     {
         $body = @file_get_contents($cached['file']);
 
@@ -135,12 +140,14 @@ class Avatar extends Widget
             // 缓存文件刚好被并发清理掉，退化成占位图
             $placeholder = AvatarCache::placeholder();
             $this->sendBody($placeholder['body'], $placeholder['mime'], 0, 'FALLBACK', self::FALLBACK_MAX_AGE);
-            return;
+            return false;
         }
 
         $lastModified = (int) @filemtime($paths['data']);
 
         $this->sendBody($body, $cached['mime'], $lastModified ?: time(), $state, $maxAge);
+
+        return true;
     }
 
     /**

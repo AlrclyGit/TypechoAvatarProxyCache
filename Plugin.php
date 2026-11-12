@@ -241,16 +241,6 @@ class Plugin implements PluginInterface
         $timeout->addRule('isInteger', _t('回源超时必须是整数'));
         $form->addInput($timeout);
 
-        $stale = new \Typecho\Widget\Helper\Form\Element\Radio(
-            'stale',
-            ['1' => _t('继续使用过期缓存'), '0' => _t('输出空白占位图')],
-            '1',
-            _t('回源失败时的处理'),
-            _t('头像源请求失败、而本地缓存又已过期时：选第一项可以继续用旧头像，保证页面不出现破损图片；'
-                . '选第二项则改用空白占位图。两种都不会让图片加载失败。')
-        );
-        $form->addInput($stale);
-
         $cleanup = new \Typecho\Widget\Helper\Form\Element\Radio(
             'autoCleanup',
             ['1' => _t('开启'), '0' => _t('关闭')],
@@ -413,7 +403,6 @@ class Plugin implements PluginInterface
             'dicebearUrl'   => self::DEFAULT_DICEBEAR_URL,
             'ttl'           => '604800',
             'timeout'       => '3',
-            'stale'         => '1',
             'autoCleanup'   => '1',
             'cleanupRatio'  => '5',
             'cachePath'     => '',
@@ -488,7 +477,10 @@ class Plugin implements PluginInterface
         // 旧版本设置项不再使用（开关由启用/禁用插件实现），直接丢弃
         unset($settings['enable']);
 
-        $settings['stale'] = '1' === (string) $settings['stale'] ? '1' : '0';
+        // 回源失败一律降级为「继续使用过期缓存」，不再提供开关，
+        // 旧版本落库的 stale 值直接丢弃
+        unset($settings['stale']);
+
         $settings['autoCleanup'] = '1' === (string) $settings['autoCleanup'] ? '1' : '0';
 
         return $settings;
@@ -1072,6 +1064,83 @@ class Plugin implements PluginInterface
         return ['body' => "GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xFF\xFF\xFF!"
             . "\xF9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;",
             'mime' => 'image/gif'];
+    }
+
+    /**
+     * 记录一次降级
+     *
+     * 回源失败（所有头像源 + DiceBear 兜底都没拿到图）时写入一份记录，
+     * 后台面板据此提示异常。文件放在缓存目录根下，不参与两级分片，
+     * 也不影响头像缓存本身。
+     *
+     * @param string $reason stale = 用了过期旧缓存，placeholder = 返回了空白占位图
+     */
+    public static function recordFallback(string $reason): void
+    {
+        $count = 0;
+        $raw = @file_get_contents(self::fallbackLogFile());
+
+        if (false !== $raw) {
+            $prev = json_decode($raw, true);
+
+            if (is_array($prev) && isset($prev['count'])) {
+                $count = (int) $prev['count'];
+            }
+        }
+
+        @file_put_contents(self::fallbackLogFile(), json_encode([
+            'time'   => time(),
+            'count'  => $count + 1,
+            'reason' => 'placeholder' === $reason ? 'placeholder' : 'stale',
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * 最近一次降级记录
+     *
+     * @return array{time: int, count: int, reason: string}|null
+     */
+    public static function fallbackInfo(): ?array
+    {
+        $raw = @file_get_contents(self::fallbackLogFile());
+
+        if (false === $raw) {
+            return null;
+        }
+
+        $info = json_decode($raw, true);
+
+        if (!is_array($info) || empty($info['time'])) {
+            return null;
+        }
+
+        return [
+            'time'   => (int) $info['time'],
+            'count'  => (int) ($info['count'] ?? 1),
+            'reason' => 'placeholder' === ($info['reason'] ?? '') ? 'placeholder' : 'stale',
+        ];
+    }
+
+    /**
+     * 清除降级记录
+     */
+    public static function clearFallback(): void
+    {
+        $file = self::fallbackLogFile();
+
+        if (is_file($file)) {
+            @unlink($file);
+        }
+    }
+
+    /**
+     * 降级记录文件路径
+     *
+     * @return string
+     */
+    private static function fallbackLogFile(): string
+    {
+        return self::cacheDir() . '/.fallback.json';
     }
 
     /**

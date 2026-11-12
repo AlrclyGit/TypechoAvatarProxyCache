@@ -63,6 +63,9 @@ if ($request->isPost()) {
     } elseif ('flush' === $do) {
         $deleted = $pluginClass::flush();
         \Widget\Notice::alloc()->set(_t('已清空全部缓存，共删除 %d 个文件', $deleted), 'success');
+    } elseif ('clearFallback' === $do) {
+        $pluginClass::clearFallback();
+        \Widget\Notice::alloc()->set(_t('降级提示已清除'), 'success');
     }
 
     // PRG：提交后重定向，避免刷新页面时重复执行清理
@@ -74,6 +77,7 @@ if ($request->isPost()) {
 $pluginClass::maybeCleanup(true);
 
 $settings = $pluginClass::settings();
+$fallback = $pluginClass::fallbackInfo();
 $stats = $pluginClass::stats();
 $cacheDir = $pluginClass::cacheDir();
 $diagnostics = $pluginClass::diagnostics();
@@ -98,6 +102,34 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
 <main class="main">
     <div class="body container">
         <?php include __TYPECHO_ROOT_DIR__ . '/admin/page-title.php'; ?>
+
+        <?php if (null !== $fallback): ?>
+            <div class="message notice">
+                <p><strong><?php _e('最近有头像回源失败，已自动降级'); ?></strong></p>
+                <p class="description">
+                    <?php _e('时间：'); ?><?php echo htmlspecialchars(
+                        gmdate('Y-m-d H:i:s', $fallback['time'] + (int) $options->timezone)
+                    ); ?><br>
+                    <?php _e('累计降级次数：'); ?><?php echo (int) $fallback['count']; ?> <?php _e('次'); ?><br>
+                    <?php _e('最近一次的输出方式：'); ?>
+                    <?php echo 'placeholder' === $fallback['reason']
+                        ? _t('空白占位图（所有头像源与兜底头像都失败，且没有可用的过期缓存）')
+                        : _t('继续使用过期缓存（所有头像源与兜底头像都失败）'); ?>
+                </p>
+                <p class="description">
+                    <?php _e('通常是头像源不可达（网络不通或被拦截）导致的，插件不会让页面出现破损图片，'
+                        . '源恢复后会自动回到正常缓存。如果长时间持续出现，请检查「定义头像源」'
+                        . '与「兜底头像地址」在当前服务器上是否可以访问。'); ?>
+                </p>
+                <form method="post" action="<?php echo htmlspecialchars($panelUrl); ?>">
+                    <input type="hidden" name="_"
+                           value="<?php echo htmlspecialchars($csrfToken); ?>">
+                    <button type="submit" name="do" value="clearFallback" class="btn btn-s">
+                        <?php _e('知道了，清除提示'); ?>
+                    </button>
+                </form>
+            </div>
+        <?php endif; ?>
 
         <div class="row typecho-page-main" role="main">
             <div class="col-mb-12 col-tb-8">
