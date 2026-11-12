@@ -21,7 +21,7 @@
  *   保证长期不会被访问的头像不会一直占着磁盘。
  */
 
-namespace TypechoPlugin\GravatarCache;
+namespace TypechoPlugin\AvatarCache;
 
 use Typecho\Common;
 use Typecho\Plugin as TypechoPlugin;
@@ -48,7 +48,7 @@ class Plugin implements PluginInterface
      * 插件标识：同时用作路由名、缓存目录名、设置项名
      * 如果改了插件目录名，这里要一起改
      */
-    public const NAME = 'GravatarCache';
+    public const NAME = 'AvatarCache';
 
     /**
      * 路由表中本插件的路由名
@@ -913,7 +913,7 @@ class Plugin implements PluginInterface
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_ENCODING       => '',
-            CURLOPT_USERAGENT      => 'Typecho-GravatarCache/1.0',
+            CURLOPT_USERAGENT      => 'Typecho-AvatarCache/1.0',
             CURLOPT_HTTPHEADER     => ['Accept: image/*'],
         ]);
 
@@ -1476,7 +1476,7 @@ class Plugin implements PluginInterface
         }
 
         $rule = <<<'HTACCESS'
-# GravatarCache：缓存目录禁止直接访问（头像通过 /gravatar-cache/ 路由输出）
+# AvatarCache：缓存目录禁止直接访问（头像通过 /gravatar-cache/ 路由输出）
 <IfModule mod_authz_core.c>
     Require all denied
 </IfModule>
@@ -1503,7 +1503,7 @@ HTACCESS;
         Helper::addRoute(
             self::ROUTE_NAME,
             self::ROUTE_URL,
-            '\TypechoPlugin\GravatarCache\Widget\Avatar',
+            '\TypechoPlugin\AvatarCache\Widget\Avatar',
             'render',
             'index'
         );
@@ -1512,7 +1512,7 @@ HTACCESS;
         Helper::addRoute(
             self::ROUTE_EMPTY_NAME,
             self::ROUTE_EMPTY_URL,
-            '\TypechoPlugin\GravatarCache\Widget\Avatar',
+            '\TypechoPlugin\AvatarCache\Widget\Avatar',
             'render',
             self::ROUTE_NAME
         );

@@ -3,7 +3,7 @@
 /*
  * Gravatar 头像缓存 - 后台面板
  *
- * 通过 admin/extending.php?panel=GravatarCache/manage.php 加载。
+ * 通过 admin/extending.php?panel=AvatarCache/manage.php 加载。
  * 进入本页会顺带强制清理一次过期缓存，并提供手动清理 / 清空的入口。
  * 这里可以直接使用 admin/common.php 初始化好的
  * $options / $user / $security / $request / $response / $menu。
@@ -13,7 +13,7 @@ if (!defined('__TYPECHO_ROOT_DIR__') || !defined('__TYPECHO_ADMIN__')) {
     exit;
 }
 
-use TypechoPlugin\GravatarCache\Plugin;
+use TypechoPlugin\AvatarCache\Plugin;
 
 /** 只有管理员可以访问 */
 if (!$user->pass('administrator', true)) {

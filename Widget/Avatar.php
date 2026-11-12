@@ -7,11 +7,11 @@
  * 处理顺序：本地缓存 → 回源 → 回源失败时降级（旧缓存 / 空白占位图）。
  */
 
-namespace TypechoPlugin\GravatarCache\Widget;
+namespace TypechoPlugin\AvatarCache\Widget;
 
 use Typecho\Response;
 use Typecho\Widget;
-use TypechoPlugin\GravatarCache\Plugin as GravatarCache;
+use TypechoPlugin\AvatarCache\Plugin as AvatarCache;
 
 if (!defined('__TYPECHO_ROOT_DIR__')) {
     exit;
@@ -46,20 +46,20 @@ class Avatar extends Widget
 
         // 空邮箱走兜底路由 /gravatar-cache/，没有 hash 参数，统一按 md5('') 处理
         if ('' === $hash) {
-            $hash = GravatarCache::EMPTY_HASH;
+            $hash = AvatarCache::EMPTY_HASH;
         }
 
-        $params = GravatarCache::normalizeParams(
+        $params = AvatarCache::normalizeParams(
             $hash,
             (int) $this->request->get('s', 64),
             $this->request->get('r', null),
             $this->request->get('d', null)
         );
 
-        $settings = GravatarCache::settings();
+        $settings = AvatarCache::settings();
 
-        $paths = GravatarCache::cachePaths($params);
-        $cached = GravatarCache::readCache($paths);
+        $paths = AvatarCache::cachePaths($params);
+        $cached = AvatarCache::readCache($paths);
 
         // 1. 命中未过期缓存
         if (null !== $cached && $cached['fresh']) {
@@ -68,13 +68,13 @@ class Avatar extends Widget
         }
 
         // 2. 回源。失败冷却期内不再白白等超时，直接降级
-        if (!GravatarCache::inFailCooldown($paths)) {
-            $fetched = GravatarCache::fetchAvatar($params);
+        if (!AvatarCache::inFailCooldown($paths)) {
+            $fetched = AvatarCache::fetchAvatar($params);
 
             if (null !== $fetched) {
                 $ttl = (int) $settings['ttl'];
                 $now = time();
-                $written = GravatarCache::writeCache($paths, $fetched['body'], $fetched['mime'], $ttl);
+                $written = AvatarCache::writeCache($paths, $fetched['body'], $fetched['mime'], $ttl);
 
                 // 写不进缓存说明目录权限有问题，此时插件退化成纯代理：
                 // 每次请求都回源，功能仍然可用，但要通过响应头暴露出来便于排查
@@ -89,7 +89,7 @@ class Avatar extends Widget
                 return;
             }
 
-            GravatarCache::markFail($paths);
+            AvatarCache::markFail($paths);
         }
 
         // 3. 降级：可用的旧缓存优先，其次空白占位图
@@ -98,7 +98,7 @@ class Avatar extends Widget
             return;
         }
 
-        $placeholder = GravatarCache::placeholder();
+        $placeholder = AvatarCache::placeholder();
         $this->sendBody($placeholder['body'], $placeholder['mime'], 0, 'FALLBACK', self::FALLBACK_MAX_AGE);
     }
 
@@ -133,7 +133,7 @@ class Avatar extends Widget
 
         if (false === $body) {
             // 缓存文件刚好被并发清理掉，退化成占位图
-            $placeholder = GravatarCache::placeholder();
+            $placeholder = AvatarCache::placeholder();
             $this->sendBody($placeholder['body'], $placeholder['mime'], 0, 'FALLBACK', self::FALLBACK_MAX_AGE);
             return;
         }
