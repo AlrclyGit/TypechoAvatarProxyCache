@@ -236,7 +236,7 @@ class Plugin implements PluginInterface
             null,
             '3',
             _t('回源超时（秒）'),
-            _t('向头像源请求时最多等待的秒数，默认 3 秒。头像源不稳定时调小可以让页面更快返回。')
+            _t('向头像源请求时最多等待的秒数，默认 3 秒。头像源不稳定时，调小可以更快查找下一个源。')
         );
         $timeout->addRule('isInteger', _t('回源超时必须是整数'));
         $form->addInput($timeout);
