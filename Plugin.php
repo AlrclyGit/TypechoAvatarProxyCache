@@ -198,16 +198,6 @@ class Plugin implements PluginInterface
         );
         $form->addInput($servers);
 
-        $dicebearStyle = new \Typecho\Widget\Helper\Form\Element\Text(
-            'dicebearStyle',
-            null,
-            self::DEFAULT_DICEBEAR_STYLE,
-            _t('兜底头像样式'),
-            _t('所有头像源都获取失败时使用的兜底头像样式，默认 waves。'
-                . '可用样式见 https://www.dicebear.com/styles/。')
-        );
-        $form->addInput($dicebearStyle);
-
         $dicebearUrl = new \Typecho\Widget\Helper\Form\Element\Text(
             'dicebearUrl',
             null,
@@ -219,6 +209,16 @@ class Plugin implements PluginInterface
                 . '注意修改后已缓存的兜底头像会按新地址重新获取。')
         );
         $form->addInput($dicebearUrl);
+
+        $dicebearStyle = new \Typecho\Widget\Helper\Form\Element\Text(
+            'dicebearStyle',
+            null,
+            self::DEFAULT_DICEBEAR_STYLE,
+            _t('兜底头像样式'),
+            _t('所有头像源都获取失败时使用的兜底头像样式，默认 waves。'
+                . '可用样式见 https://www.dicebear.com/styles/。')
+        );
+        $form->addInput($dicebearStyle);
 
         $ttl = new \Typecho\Widget\Helper\Form\Element\Number(
             'ttl',
