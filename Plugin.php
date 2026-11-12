@@ -184,9 +184,9 @@ class Plugin implements PluginInterface
         $ttl = new \Typecho\Widget\Helper\Form\Element\Number(
             'ttl',
             null,
-            '2592000',
+            '604800',
             _t('缓存有效期（秒）'),
-            _t('超过这个时长后重新回源获取一次，默认 2592000 秒（30 天）。'
+            _t('超过这个时长后重新回源获取一次，默认 604800 秒（7 天）。'
                 . '建议不要小于 86400（1 天），否则回源次数会明显变多。')
         );
         $ttl->addRule('isInteger', _t('缓存有效期必须是整数'));
@@ -364,7 +364,7 @@ class Plugin implements PluginInterface
     {
         return [
             'enable'       => '1',
-            'ttl'          => '2592000',
+            'ttl'          => '604800',
             'timeout'      => '3',
             'server'       => '',
             'stale'        => '1',
@@ -385,7 +385,7 @@ class Plugin implements PluginInterface
         $settings += self::defaultSettings();
 
         $ttl = (int) $settings['ttl'];
-        $settings['ttl'] = (string) ($ttl >= 60 ? $ttl : 2592000);
+        $settings['ttl'] = (string) ($ttl >= 60 ? $ttl : 604800);
 
         $timeout = (int) $settings['timeout'];
         $settings['timeout'] = (string) ($timeout >= 1 ? $timeout : 3);
