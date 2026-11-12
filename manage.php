@@ -150,9 +150,7 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
                     </tr>
                     <tr>
                         <th><?php _e('头像源'); ?></th>
-                        <td><?php echo '' !== $settings['server']
-                                ? htmlspecialchars($settings['server'])
-                                : 'https://secure.gravatar.com'; ?></td>
+                        <td><?php echo htmlspecialchars($settings['servers']); ?></td>
                     </tr>
                     <tr>
                         <th><?php _e('自动清理'); ?></th>

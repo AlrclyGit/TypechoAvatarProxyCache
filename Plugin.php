@@ -3,9 +3,9 @@
 /*
  * Gravatar 头像缓存代理
  *
- * gravatar.com 在国内访问很不稳定，评论头像经常加载失败或长时间白屏。
+ * 公共 Gravatar 源在国内访问很不稳定，评论头像经常加载失败或长时间白屏。
  * 本插件把头像改由自己的站点代理输出，并在服务器本地缓存一份：
- * 浏览器只跟本站通信，gravatar.com 只在缓存缺失或过期时回源一次。
+ * 浏览器只跟本站通信，头像按用户定义的源列表依次回源，全部失败时用 DiceBear 兜底。
  *
  * 工作方式：
  * 1. 启用时向 Typecho 路由表注册 /gravatar-cache/[hash] 路由，由插件自带的
@@ -85,6 +85,16 @@ class Plugin implements PluginInterface
      * 空邮箱对应的方法，与 md5('') 一致
      */
     public const EMPTY_HASH = 'd41d8cd98f00b204e9800998ecf8427e';
+
+    /**
+     * 默认头像源列表，逗号分隔，按填写顺序依次尝试
+     */
+    public const DEFAULT_SERVERS = 'https://cn.cravatar.com,https://secure.gravatar.com';
+
+    /**
+     * DiceBear 兜底头像的默认样式
+     */
+    public const DEFAULT_DICEBEAR_STYLE = 'waves';
 
     /**
      * 缓存目录名（位于插件目录内）
@@ -172,14 +182,26 @@ class Plugin implements PluginInterface
      */
     public static function config(Form $form)
     {
-        $enable = new \Typecho\Widget\Helper\Form\Element\Radio(
-            'enable',
-            ['1' => _t('开启'), '0' => _t('关闭')],
-            '1',
-            _t('启用头像代理'),
-            _t('开启后，评论、作者和后台用户头像都会改为经由本站输出；关闭则恢复直连 gravatar.com。')
+        $servers = new \Typecho\Widget\Helper\Form\Element\Text(
+            'servers',
+            null,
+            self::DEFAULT_SERVERS,
+            _t('定义头像源'),
+            _t('头像按这里填写的顺序依次获取，成功一个就停止，多个源用英文逗号 , 分隔，例如：'
+                . self::DEFAULT_SERVERS
+                . '。全部失败时用 DiceBear 按邮箱生成一张兜底头像，保证图片永远可显示。')
         );
-        $form->addInput($enable);
+        $form->addInput($servers);
+
+        $dicebearStyle = new \Typecho\Widget\Helper\Form\Element\Text(
+            'dicebearStyle',
+            null,
+            self::DEFAULT_DICEBEAR_STYLE,
+            _t('兜底头像样式'),
+            _t('所有头像源都获取失败时使用的兜底头像样式，默认 waves。'
+                . '可用样式见 https://www.dicebear.com/styles/。')
+        );
+        $form->addInput($dicebearStyle);
 
         $ttl = new \Typecho\Widget\Helper\Form\Element\Number(
             'ttl',
@@ -201,17 +223,6 @@ class Plugin implements PluginInterface
         );
         $timeout->addRule('isInteger', _t('回源超时必须是整数'));
         $form->addInput($timeout);
-
-        $server = new \Typecho\Widget\Helper\Form\Element\Text(
-            'server',
-            null,
-            '',
-            _t('自定义头像源'),
-            _t('可选。填写 Gravatar 镜像的协议和域名，例如 https://sdn.geekzu.org，插件会自动补 /avatar/ 路径；'
-                . '留空表示使用官方 secure.gravatar.com。')
-        );
-        $server->addRule('url', _t('头像源必须是合法的 URL 地址'));
-        $form->addInput($server);
 
         $stale = new \Typecho\Widget\Helper\Form\Element\Radio(
             'stale',
@@ -292,8 +303,17 @@ class Plugin implements PluginInterface
             }
         }
 
-        if (!empty($settings['server']) && !preg_match('#^https?://[^/\s]+#i', trim((string) $settings['server']))) {
-            return _t('头像源地址格式不正确，请填写类似 https://sdn.geekzu.org 的地址');
+        if (isset($settings['servers'])) {
+            foreach (self::splitServers((string) $settings['servers']) as $server) {
+                if (!preg_match('#^https?://[^/\s]+$#i', $server)) {
+                    return _t('头像源地址格式不正确：' . htmlspecialchars($server));
+                }
+            }
+        }
+
+        if (isset($settings['dicebearStyle'])
+            && !preg_match('/^[A-Za-z0-9_-]+$/', trim((string) $settings['dicebearStyle']))) {
+            return _t('兜底头像样式只能包含字母、数字、下划线和连字符');
         }
 
         return null;
@@ -363,14 +383,14 @@ class Plugin implements PluginInterface
     public static function defaultSettings(): array
     {
         return [
-            'enable'       => '1',
-            'ttl'          => '604800',
-            'timeout'      => '3',
-            'server'       => '',
-            'stale'        => '1',
-            'autoCleanup'  => '1',
-            'cleanupRatio' => '5',
-            'cachePath'    => '',
+            'servers'       => self::DEFAULT_SERVERS,
+            'dicebearStyle' => self::DEFAULT_DICEBEAR_STYLE,
+            'ttl'           => '604800',
+            'timeout'       => '3',
+            'stale'         => '1',
+            'autoCleanup'   => '1',
+            'cleanupRatio'  => '5',
+            'cachePath'     => '',
         ];
     }
 
@@ -390,8 +410,31 @@ class Plugin implements PluginInterface
         $timeout = (int) $settings['timeout'];
         $settings['timeout'] = (string) ($timeout >= 1 ? $timeout : 3);
 
-        $server = trim((string) $settings['server']);
-        $settings['server'] = preg_match('#^https?://#i', $server) ? rtrim($server, '/') : '';
+        // 头像源：支持逗号分隔的多个源，按填写顺序依次尝试。
+        // 兼容旧版设置项 server（单源）：新值为空时迁移旧值
+        $legacy = trim((string) ($settings['server'] ?? ''));
+        $servers = trim((string) ($settings['servers'] ?? ''));
+
+        if ('' === $servers) {
+            $servers = $legacy;
+        }
+
+        $list = [];
+
+        foreach (self::splitServers($servers) as $item) {
+            if (preg_match('#^https?://[^/\s]+$#i', $item)) {
+                $list[] = $item;
+            }
+        }
+
+        // 一个合法的源都没有时回落到默认列表，保证永远有源可用
+        $settings['servers'] = empty($list) ? self::DEFAULT_SERVERS : implode(',', $list);
+        unset($settings['server']);
+
+        // DiceBear 兜底样式
+        $style = trim((string) ($settings['dicebearStyle'] ?? ''));
+        $settings['dicebearStyle'] = preg_match('/^[A-Za-z0-9_-]+$/', $style)
+            ? $style : self::DEFAULT_DICEBEAR_STYLE;
 
         $ratio = (int) $settings['cleanupRatio'];
         $settings['cleanupRatio'] = (string) ($ratio >= 0 && $ratio <= 100 ? $ratio : 5);
@@ -406,7 +449,9 @@ class Plugin implements PluginInterface
 
         $settings['cachePath'] = $cachePath;
 
-        $settings['enable'] = '1' === (string) $settings['enable'] ? '1' : '0';
+        // 旧版本设置项不再使用（开关由启用/禁用插件实现），直接丢弃
+        unset($settings['enable']);
+
         $settings['stale'] = '1' === (string) $settings['stale'] ? '1' : '0';
         $settings['autoCleanup'] = '1' === (string) $settings['autoCleanup'] ? '1' : '0';
 
@@ -433,12 +478,6 @@ class Plugin implements PluginInterface
     public static function onBegin(): void
     {
         try {
-            $settings = self::settings();
-
-            if ('1' !== $settings['enable']) {
-                return;
-            }
-
             self::defineGravatarPrefix();
 
             // 头像请求本身要尽量快，不在这里扫描缓存目录
@@ -615,7 +654,7 @@ class Plugin implements PluginInterface
             $params['size'],
             $params['rating'],
             $params['default'],
-            self::settings()['server'],
+            self::settings()['servers'],
         ]));
 
         $dir = self::cacheDir() . '/' . substr($key, 0, 2) . '/' . substr($key, 2, 2);
@@ -763,8 +802,8 @@ class Plugin implements PluginInterface
     /**
      * 回源获取头像
      *
-     * 优先用 curl；没有 curl 扩展时退回 stream 封装，
-     * 保证在任何 PHP 8.5 环境都能出图。
+     * 按定义头像源的顺序逐个尝试（curl 优先，没有 curl 扩展时退回 stream 封装），
+     * 成功一个就停止；全部失败时用 DiceBear 按邮箱生成兜底头像。
      *
      * @param array $params
      * @return array|null 成功返回 ['body' => string, 'mime' => string]
@@ -772,9 +811,34 @@ class Plugin implements PluginInterface
     public static function fetchAvatar(array $params): ?array
     {
         $settings = self::settings();
-        $url = self::upstreamUrl($params, $settings);
         $timeout = (int) $settings['timeout'];
+        $query = http_build_query([
+            's' => $params['size'],
+            'r' => $params['rating'],
+            'd' => $params['default'],
+        ]);
 
+        foreach (self::splitServers($settings['servers']) as $server) {
+            $result = self::fetchUrl(rtrim($server, '/') . '/avatar/' . $params['hash'] . '?' . $query, $timeout);
+
+            if (null !== $result) {
+                return $result;
+            }
+        }
+
+        // 所有头像源都失败：用 DiceBear 按邮箱 hash 生成一张兜底头像
+        return self::fetchUrl(self::dicebearUrl($params, $settings), $timeout);
+    }
+
+    /**
+     * 下载单个地址并校验内容确实是图片
+     *
+     * @param string $url
+     * @param int $timeout
+     * @return array|null 成功返回 ['body' => string, 'mime' => string]
+     */
+    private static function fetchUrl(string $url, int $timeout): ?array
+    {
         $body = function_exists('curl_init')
             ? self::fetchByCurl($url, $timeout)
             : self::fetchByStream($url, $timeout);
@@ -794,21 +858,39 @@ class Plugin implements PluginInterface
     }
 
     /**
-     * 拼回源地址
+     * DiceBear 兜底头像地址
+     *
+     * 用邮箱 hash 作为 seed，同一个邮箱永远得到同一张兜底头像。
      *
      * @param array $params
      * @param array $settings
      * @return string
      */
-    public static function upstreamUrl(array $params, array $settings): string
+    public static function dicebearUrl(array $params, array $settings): string
     {
-        $base = '' !== $settings['server'] ? $settings['server'] : 'https://secure.gravatar.com';
+        return 'https://api.dicebear.com/10.x/' . rawurlencode($settings['dicebearStyle'])
+            . '/svg?seed=' . rawurlencode($params['hash']);
+    }
 
-        return rtrim($base, '/') . '/avatar/' . $params['hash'] . '?' . http_build_query([
-            's' => $params['size'],
-            'r' => $params['rating'],
-            'd' => $params['default'],
-        ]);
+    /**
+     * 拆分头像源列表
+     *
+     * @param string $servers 逗号分隔的源列表
+     * @return array
+     */
+    public static function splitServers(string $servers): array
+    {
+        $list = [];
+
+        foreach (explode(',', $servers) as $item) {
+            $item = trim($item);
+
+            if ('' !== $item) {
+                $list[] = rtrim($item, '/');
+            }
+        }
+
+        return $list;
     }
 
     /**
@@ -882,8 +964,8 @@ class Plugin implements PluginInterface
     /**
      * 用文件头判断 MIME
      *
-     * 只认 Gravatar 会返回的四种格式。比 getimagesize / finfo 便宜，
-     * 也不依赖 GD 或 fileinfo 扩展。
+     * 只认头像源会返回的五种格式（jpeg / png / gif / webp / svg）。
+     * 比 getimagesize / finfo 便宜，也不依赖 GD 或 fileinfo 扩展。
      *
      * @param string $body
      * @return string|null
@@ -892,6 +974,11 @@ class Plugin implements PluginInterface
     {
         if (strlen($body) < 12) {
             return null;
+        }
+
+        // SVG（DiceBear 兜底头像返回的就是这种格式）
+        if (preg_match('/^\s*(?:<\?xml[\s\S]*?\?>)?\s*<svg[\s>]/i', substr($body, 0, 512))) {
+            return 'image/svg+xml';
         }
 
         if (0 === strncmp($body, "\xFF\xD8\xFF", 3)) {

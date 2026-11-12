@@ -58,12 +58,6 @@ class Avatar extends Widget
 
         $settings = GravatarCache::settings();
 
-        // 插件被临时关闭：老页面里的缓存地址直接交还给浏览器，避免出现占位图
-        if ('1' !== $settings['enable']) {
-            $this->response->redirect(GravatarCache::upstreamUrl($params, $settings));
-            return;
-        }
-
         $paths = GravatarCache::cachePaths($params);
         $cached = GravatarCache::readCache($paths);
 
