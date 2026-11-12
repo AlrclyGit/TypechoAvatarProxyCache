@@ -641,21 +641,15 @@ class Plugin implements PluginInterface
     /**
      * 计算缓存文件路径
      *
-     * 尺寸、评级、默认头像、头像源都会影响图片内容，必须一起参与 key，
-     * 否则不同尺寸会互相串图。
+     * 回源只带 d=404，返回内容由 邮箱 hash + 头像源 唯一决定，
+     * 因此 key 只含这两项：同一个人不管浏览器请求多大尺寸，都命中同一份缓存。
      *
      * @param array $params
      * @return array{data: string, meta: string, fail: string}
      */
     public static function cachePaths(array $params): array
     {
-        $key = md5(implode('|', [
-            $params['hash'],
-            $params['size'],
-            $params['rating'],
-            $params['default'],
-            self::settings()['servers'],
-        ]));
+        $key = md5($params['hash'] . '|' . self::settings()['servers']);
 
         $dir = self::cacheDir() . '/' . substr($key, 0, 2) . '/' . substr($key, 2, 2);
 
@@ -812,21 +806,23 @@ class Plugin implements PluginInterface
     {
         $settings = self::settings();
         $timeout = (int) $settings['timeout'];
-        $query = http_build_query([
-            's' => $params['size'],
-            'r' => $params['rating'],
-            'd' => $params['default'],
-        ]);
 
+        // 回源只带 d=404，不带 s / r：
+        // 1. 尺寸由缓存端整图返回，浏览器自行缩放，源上的图不需要按尺寸重复下载
+        // 2. d=404 表示「源上没有此邮箱的头像就返回 404」，
+        //    404 不是故障，而是跳到下一个源、最后落到 DiceBear 的信号
         foreach (self::splitServers($settings['servers']) as $server) {
-            $result = self::fetchUrl(rtrim($server, '/') . '/avatar/' . $params['hash'] . '?' . $query, $timeout);
+            $result = self::fetchUrl(
+                rtrim($server, '/') . '/avatar/' . $params['hash'] . '?d=404',
+                $timeout
+            );
 
             if (null !== $result) {
                 return $result;
             }
         }
 
-        // 所有头像源都失败：用 DiceBear 按邮箱 hash 生成一张兜底头像
+        // 所有头像源都没有（404）或全部不可达：用 DiceBear 按邮箱 hash 生成一张兜底头像
         return self::fetchUrl(self::dicebearUrl($params, $settings), $timeout);
     }
 
