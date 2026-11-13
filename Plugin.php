@@ -251,17 +251,6 @@ class Plugin implements PluginInterface
         );
         $form->addInput($dicebearStyle);
 
-        $ttl = new \Typecho\Widget\Helper\Form\Element\Number(
-            'ttl',
-            null,
-            '604800',
-            _t('缓存有效期（秒）'),
-            _t('超过这个时长后重新回源获取一次，默认 604800 秒（7 天）。'
-                . '建议不要小于 86400（1 天），否则回源次数会明显变多。')
-        );
-        $ttl->addRule('isInteger', _t('缓存有效期必须是整数'));
-        $form->addInput($ttl);
-
         $timeout = new \Typecho\Widget\Helper\Form\Element\Number(
             'timeout',
             null,
@@ -271,6 +260,43 @@ class Plugin implements PluginInterface
         );
         $timeout->addRule('isInteger', _t('回源超时必须是整数'));
         $form->addInput($timeout);
+
+        $cacheEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+            'cacheEnabled',
+            ['1' => _t('开启'), '0' => _t('关闭')],
+            '1',
+            _t('缓存开关'),
+            _t('开启后，头像第一次被请求时下载并缓存到本地，之后由本站直接输出，'
+                . '访客不再依赖头像源的连通性；关闭后不读也不写任何头像缓存文件，'
+                . '每次请求都回源头像源（相当于纯代理），不占磁盘，但页面会明显变慢，'
+                . '头像源不可用时只能显示兜底头像。')
+        );
+        $form->addInput($cacheEnabled);
+
+        $cachePath = new \Typecho\Widget\Helper\Form\Element\Text(
+            'cachePath',
+            null,
+            '',
+            _t('缓存目录'),
+            _t('留空表示使用插件目录下的 cache/。如果提示目录不可写'
+                . '（常见于 1Panel、宝塔这类 Docker 部署，插件目录属主与 PHP 运行用户不一致），'
+                . '可以改成站点内任意可写目录，例如 usr/cache/gravatar；'
+                . '也可以直接填绝对路径。目录不需要预先存在，插件会自动创建。'
+                . '缓存开关关闭时该目录只用于存放回源失败标记。')
+        );
+        $form->addInput($cachePath);
+
+        $ttl = new \Typecho\Widget\Helper\Form\Element\Number(
+            'ttl',
+            null,
+            '604800',
+            _t('缓存有效期（秒）'),
+            _t('超过这个时长后重新回源获取一次，默认 604800 秒（7 天）。'
+                . '建议不要小于 86400（1 天），否则回源次数会明显变多。'
+                . '仅在缓存开关开启时生效。')
+        );
+        $ttl->addRule('isInteger', _t('缓存有效期必须是整数'));
+        $form->addInput($ttl);
 
         $panelUrl = htmlspecialchars(self::panelUrl());
 
@@ -295,18 +321,6 @@ class Plugin implements PluginInterface
         );
         $ratio->addRule('isInteger', _t('清理概率必须是整数'));
         $form->addInput($ratio);
-
-        $cachePath = new \Typecho\Widget\Helper\Form\Element\Text(
-            'cachePath',
-            null,
-            '',
-            _t('缓存目录'),
-            _t('留空表示使用插件目录下的 cache/。如果提示目录不可写'
-                . '（常见于 1Panel、宝塔这类 Docker 部署，插件目录属主与 PHP 运行用户不一致），'
-                . '可以改成站点内任意可写目录，例如 usr/cache/gravatar；'
-                . '也可以直接填绝对路径。目录不需要预先存在，插件会自动创建。')
-        );
-        $form->addInput($cachePath);
     }
 
     /**
@@ -328,7 +342,10 @@ class Plugin implements PluginInterface
      */
     public static function configCheck(array $settings): ?string
     {
-        if (isset($settings['ttl']) && (int) $settings['ttl'] < 60) {
+        // 缓存关闭时不写缓存，有效期填什么都不影响运行，不再拦着保存
+        $caching = !isset($settings['cacheEnabled']) || '1' === (string) $settings['cacheEnabled'];
+
+        if ($caching && isset($settings['ttl']) && (int) $settings['ttl'] < 60) {
             return _t('缓存有效期不能小于 60 秒');
         }
 
@@ -437,10 +454,23 @@ class Plugin implements PluginInterface
             'dicebearUrl'   => self::DEFAULT_DICEBEAR_URL,
             'ttl'           => '604800',
             'timeout'       => '3',
+            'cacheEnabled'  => '1',
             'autoCleanup'   => '1',
             'cleanupRatio'  => '5',
             'cachePath'     => '',
         ];
+    }
+
+    /**
+     * 是否开启本地缓存
+     *
+     * 关闭时插件退化为纯代理：每次都回源头像源，不读也不写缓存文件。
+     *
+     * @return bool
+     */
+    public static function cacheEnabled(): bool
+    {
+        return '1' === self::settings()['cacheEnabled'];
     }
 
     /**
@@ -516,6 +546,9 @@ class Plugin implements PluginInterface
         unset($settings['stale']);
 
         $settings['autoCleanup'] = '1' === (string) $settings['autoCleanup'] ? '1' : '0';
+
+        // 缓存开关：除 '1' 以外的任何值都按关闭处理
+        $settings['cacheEnabled'] = '1' === (string) $settings['cacheEnabled'] ? '1' : '0';
 
         return $settings;
     }

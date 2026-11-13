@@ -58,8 +58,11 @@ class Avatar extends Widget
 
         $settings = AvatarCache::settings();
 
+        // 缓存开关关闭时退化为纯代理：不读旧缓存，也不写新缓存
+        $caching = AvatarCache::cacheEnabled();
+
         $paths = AvatarCache::cachePaths($params);
-        $cached = AvatarCache::readCache($paths);
+        $cached = $caching ? AvatarCache::readCache($paths) : null;
 
         // 1. 命中未过期缓存
         if (null !== $cached && $cached['fresh']) {
@@ -74,16 +77,20 @@ class Avatar extends Widget
             if (null !== $fetched) {
                 $ttl = (int) $settings['ttl'];
                 $now = time();
-                $written = AvatarCache::writeCache($paths, $fetched['body'], $fetched['mime'], $ttl);
+                $written = $caching && AvatarCache::writeCache($paths, $fetched['body'], $fetched['mime'], $ttl);
 
                 // 写不进缓存说明目录权限有问题，此时插件退化成纯代理：
-                // 每次请求都回源，功能仍然可用，但要通过响应头暴露出来便于排查
+                // 每次请求都回源，功能仍然可用，但要通过响应头暴露出来便于排查。
+                // 纯代理模式（开关关闭或目录不可写）没有服务端缓存可依，浏览器缓存
+                // 就是唯一能省掉回源的手段，所以这里用缓存有效期而不是 5 分钟。
+                $browserTtl = $written ? $ttl : ($caching ? self::FALLBACK_MAX_AGE : $ttl);
+
                 $this->sendBody(
                     $fetched['body'],
                     $fetched['mime'],
                     $now,
-                    $written ? 'MISS' : 'NOCACHE',
-                    $this->remaining($now + ($written ? $ttl : self::FALLBACK_MAX_AGE))
+                    !$caching ? 'BYPASS' : ($written ? 'MISS' : 'NOCACHE'),
+                    $this->remaining($now + $browserTtl)
                 );
 
                 return;

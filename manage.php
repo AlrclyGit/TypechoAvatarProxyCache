@@ -133,7 +133,7 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
 
         <div class="row typecho-page-main" role="main">
             <div class="col-mb-12 col-tb-8">
-                <?php if (!$diagnostics['writable']): ?>
+                <?php if (!$diagnostics['writable'] && '1' === $settings['cacheEnabled']): ?>
                     <div class="message error">
                         <p><strong><?php _e('缓存目录不可写，插件当前以「纯代理」模式运行'); ?></strong></p>
                         <p><?php echo htmlspecialchars($diagnostics['hint']); ?></p>
@@ -183,6 +183,12 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
                     <tr>
                         <th><?php _e('头像源'); ?></th>
                         <td><?php echo htmlspecialchars($settings['servers']); ?></td>
+                    </tr>
+                    <tr>
+                        <th><?php _e('缓存开关'); ?></th>
+                        <td><?php echo '1' === $settings['cacheEnabled']
+                                ? _t('开启')
+                                : _t('关闭（纯代理，每次请求都回源头像源，不读写缓存文件）'); ?></td>
                     </tr>
                     <tr>
                         <th><?php _e('自动清理'); ?></th>
