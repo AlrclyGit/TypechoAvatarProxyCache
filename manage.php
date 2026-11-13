@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Gravatar 头像缓存 - 后台面板
+ * 头像缓存 - 后台面板
  *
  * 通过 admin/extending.php?panel=TypechoAvatarProxyCache/manage.php 加载。
  * 进入本页会顺带强制清理一次过期缓存，并提供手动清理 / 清空的入口。
@@ -216,7 +216,7 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
                             </button>
                             <button type="submit" name="do" value="flush" class="btn"
                                     onclick="return confirm('<?php echo htmlspecialchars(
-                                        _t('确定要清空全部头像缓存吗？清空后首次访问会重新从 Gravatar 下载，首屏可能变慢。')
+                                        _t('确定要清空全部头像缓存吗？清空后首次访问会重新从头像源下载，首屏可能变慢。')
                                     ); ?>');">
                                 <?php _e('清空全部缓存'); ?>
                             </button>
@@ -248,7 +248,7 @@ include __TYPECHO_ROOT_DIR__ . '/admin/menu.php';
                     </li>
                     <li>
                         <p class="description">
-                            <?php _e('缓存过期后不会立刻删除。1.在有人请求头像时，会按照设置的概率，自动触发回源刷新，单次上限 500 个文件；2.进入此面板时，自动触发回源刷新，单次上限 500 个文件；3.点击「清理过期缓存」按钮，触发回源刷新，单次上限 100000 个文件；'); ?>
+                            <?php _e('缓存过期后不会立刻删除，而是等清理动作回收，之后有人再访问该头像时才重新回源。1.前台请求：按设置的概率触发，单次上限 500 个文件；2.进入此面板：自动触发一次，单次上限 500 个文件；3.点击「清理过期缓存」按钮：单次上限 100000 个文件；'); ?>
                         </p>
                     </li>
                     <li>
