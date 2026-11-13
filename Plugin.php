@@ -21,7 +21,7 @@
  *   保证长期不会被访问的头像不会一直占着磁盘。
  */
 
-namespace TypechoPlugin\AvatarCache;
+namespace TypechoPlugin\TypechoAvatarProxyCache;
 
 use Typecho\Common;
 use Typecho\Plugin as TypechoPlugin;
@@ -36,7 +36,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
 /**
  * 头像代理本地缓存
  *
- * @package AvatarCache
+ * @package TypechoAvatarProxyCache
  * @author 萧俊介
  * @version 2.0.0
  * @link https://www.alrcly.com/post/avatar-cache
@@ -48,7 +48,7 @@ class Plugin implements PluginInterface
      * 插件标识：同时用作路由名、缓存目录名、设置项名
      * 如果改了插件目录名，这里要一起改
      */
-    public const NAME = 'AvatarCache';
+    public const NAME = 'TypechoAvatarProxyCache';
 
     /**
      * 路由表中本插件的路由名
@@ -1022,7 +1022,7 @@ class Plugin implements PluginInterface
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_ENCODING       => '',
-            CURLOPT_USERAGENT      => 'Typecho-AvatarCache/1.0',
+            CURLOPT_USERAGENT      => 'TypechoAvatarProxyCache/2.0',
             CURLOPT_HTTPHEADER     => ['Accept: image/*'],
         ]);
 
@@ -1662,7 +1662,7 @@ class Plugin implements PluginInterface
         }
 
         $rule = <<<'HTACCESS'
-# AvatarCache：缓存目录禁止直接访问（头像通过 /gravatar-cache/ 路由输出）
+# TypechoAvatarProxyCache：缓存目录禁止直接访问（头像通过 /gravatar-cache/ 路由输出）
 <IfModule mod_authz_core.c>
     Require all denied
 </IfModule>
@@ -1689,7 +1689,7 @@ HTACCESS;
         Helper::addRoute(
             self::ROUTE_NAME,
             self::ROUTE_URL,
-            '\TypechoPlugin\AvatarCache\Widget\Avatar',
+            '\TypechoPlugin\TypechoAvatarProxyCache\Widget\Avatar',
             'render',
             'index'
         );
@@ -1698,7 +1698,7 @@ HTACCESS;
         Helper::addRoute(
             self::ROUTE_EMPTY_NAME,
             self::ROUTE_EMPTY_URL,
-            '\TypechoPlugin\AvatarCache\Widget\Avatar',
+            '\TypechoPlugin\TypechoAvatarProxyCache\Widget\Avatar',
             'render',
             self::ROUTE_NAME
         );
@@ -1734,6 +1734,18 @@ HTACCESS;
      * 后台面板文件（相对插件目录）
      */
     private const PANEL_FILE = self::NAME . '/manage.php';
+
+    /**
+     * 历史版本用过的面板文件（相对插件目录）
+     *
+     * 插件改过名：GravatarCache → AvatarCache → TypechoAvatarProxyCache。
+     * 旧名字登记的 panelTable 条目不会自己消失，重新启用时要顺手清掉，
+     * 否则左栏会留着一条指向已不存在文件的菜单。
+     */
+    private const LEGACY_PANEL_FILES = [
+        'AvatarCache/manage.php',
+        'GravatarCache/manage.php',
+    ];
 
     /**
      * 注册后台面板
@@ -1797,23 +1809,32 @@ HTACCESS;
 
         $changed = false;
 
-        $file = urlencode(trim(self::PANEL_FILE, '/'));
-        $target = 'extending.php?panel=' . $file;
+        // 当前名字 + 历史名字，两种登记都要清
+        $files = [urlencode(trim(self::PANEL_FILE, '/'))];
+        $targets = [];
+
+        foreach (self::LEGACY_PANEL_FILES as $legacy) {
+            $files[] = urlencode(trim($legacy, '/'));
+        }
+
+        foreach ($files as $file) {
+            $targets[] = 'extending.php?panel=' . $file;
+        }
 
         // 1. 从 file 白名单里删掉本插件（可能有多条）
         if (!empty($panelTable['file']) && is_array($panelTable['file'])) {
-            $files = [];
+            $kept = [];
 
             foreach ($panelTable['file'] as $item) {
-                if ($item === $file) {
+                if (in_array($item, $files, true)) {
                     $changed = true;
                     continue;
                 }
 
-                $files[] = $item;
+                $kept[] = $item;
             }
 
-            $panelTable['file'] = array_values(array_unique($files));
+            $panelTable['file'] = array_values(array_unique($kept));
         }
 
         // 2. 遍历所有菜单索引，删掉指向本插件面板的条目
@@ -1826,7 +1847,7 @@ HTACCESS;
                 $children = [];
 
                 foreach ($panelTable['child'][$index] as $item) {
-                    if (is_array($item) && isset($item[2]) && $item[2] === $target) {
+                    if (is_array($item) && isset($item[2]) && in_array($item[2], $targets, true)) {
                         $changed = true;
                         continue;
                     }

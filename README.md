@@ -1,4 +1,4 @@
-# AvatarCache
+# TypechoAvatarProxyCache
 
 Typecho 1.3 插件：把 Gravatar 头像改为**本站代理输出 + 服务器本地缓存**，解决 gravatar.com 访问不稳定导致的评论头像加载失败、页面长时间白屏问题。
 
@@ -21,7 +21,7 @@ Typecho 1.3 插件：把 Gravatar 头像改为**本站代理输出 + 服务器�
 ### 缓存布局
 
 ```
-usr/plugins/AvatarCache/cache/
+usr/plugins/TypechoAvatarProxyCache/cache/
   ab/cd/abcd....img    ← 图片字节
   ab/cd/abcd....json   ← 元数据（MIME / 过期时间）
   ab/cd/abcd....fail   ← 回源失败标记（冷却 60 秒）
@@ -32,12 +32,12 @@ usr/plugins/AvatarCache/cache/
 
 ## 安装
 
-1. 把 `AvatarCache` 整个目录上传到 `usr/plugins/`：
+1. 把 `TypechoAvatarProxyCache` 整个目录上传到 `usr/plugins/`：
 
    ```
-   usr/plugins/AvatarCache/Plugin.php
-   usr/plugins/AvatarCache/Widget/Avatar.php
-   usr/plugins/AvatarCache/manage.php
+   usr/plugins/TypechoAvatarProxyCache/Plugin.php
+   usr/plugins/TypechoAvatarProxyCache/Widget/Avatar.php
+   usr/plugins/TypechoAvatarProxyCache/manage.php
    ```
 
 2. 确保缓存目录可写。插件启用时会自动创建 `cache/`，正常情况下无需手动处理。
@@ -47,7 +47,7 @@ usr/plugins/AvatarCache/cache/
    **方案 A（推荐）：改目录属主**（在宿主机上用 root 执行）
 
    ```bash
-   chown -R www-data:www-data /opt/1panel/www/sites/你的站点/index/usr/plugins/AvatarCache
+   chown -R www-data:www-data /opt/1panel/www/sites/你的站点/index/usr/plugins/TypechoAvatarProxyCache
    ```
 
    > 属主名以 PHP 实际运行用户为准（面板提示里会写出来），常见是 `www-data`、`nginx`、`apache`、`www`。
@@ -55,7 +55,7 @@ usr/plugins/AvatarCache/cache/
 
    **方案 B：把缓存目录挪到别处**
 
-   后台 → 插件 → AvatarCache 设置 → **缓存目录**，填一个 PHP 用户可写的位置，例如：
+   后台 → 插件 → TypechoAvatarProxyCache 设置 → **缓存目录**，填一个 PHP 用户可写的位置，例如：
 
    ```
    usr/cache/gravatar
@@ -65,7 +65,7 @@ usr/plugins/AvatarCache/cache/
 
    > 即使权限没修好，插件也不会报错停摆 —— 它会自动降级为「纯代理」模式：头像照常显示，只是每次都回源头像源，不落盘缓存。后台面板顶部会持续提示，权限修好后提示自动消失。
 
-3. 后台 → 插件 → 启用 **AvatarCache**。
+3. 后台 → 插件 → 启用 **TypechoAvatarProxyCache**。
 
    启用后，后台 **控制台 → 头像缓存** 中会出现本插件的面板，可查看命中情况、磁盘占用，并手动清理。
 
@@ -102,7 +102,7 @@ usr/plugins/AvatarCache/cache/
 插件会自动在缓存目录里写一个 `.htaccess`（Apache 下禁止直接访问）。**nginx 用户**请自行在站点配置里加上：
 
 ```nginx
-location ^~ /usr/plugins/AvatarCache/cache/ {
+location ^~ /usr/plugins/TypechoAvatarProxyCache/cache/ {
     deny all;
 }
 ```
@@ -126,7 +126,7 @@ location ^~ /usr/plugins/AvatarCache/cache/ {
 $this->gravatar(64);
 
 // 或者直接生成一个地址
-echo \TypechoPlugin\AvatarCache\Plugin::avatarUrl($mail, 64, 'X', 'mm');
+echo \TypechoPlugin\TypechoAvatarProxyCache\Plugin::avatarUrl($mail, 64, 'X', 'mm');
 ```
 
 ## 常见问题
@@ -138,7 +138,7 @@ echo \TypechoPlugin\AvatarCache\Plugin::avatarUrl($mail, 64, 'X', 'mm');
 单张 64×64 头像通常 2~8 KB。一万个评论头像约几十 MB。过期文件会被自动清理，也可以在面板里手动清空。
 
 **Q：换域名 / 换目录后头像 404？**
-头像地址由 `$options->index` 动态拼接，换域名不影响。但 `Plugin::NAME` 与插件目录名必须一致（默认 `AvatarCache`），改目录名要同步改常量。
+头像地址由 `$options->index` 动态拼接，换域名不影响。但 `Plugin::NAME` 与插件目录名必须一致（默认 `TypechoAvatarProxyCache`），改目录名要同步改常量。
 
 **Q：后台提示「缓存目录不可写」怎么办？**
 
@@ -147,7 +147,7 @@ echo \TypechoPlugin\AvatarCache\Plugin::avatarUrl($mail, 64, 'X', 'mm');
 正确的解法是 **chown** 而不是 chmod：
 
 ```bash
-chown -R www-data:www-data /path/to/usr/plugins/AvatarCache
+chown -R www-data:www-data /path/to/usr/plugins/TypechoAvatarProxyCache
 ```
 
 `chmod 755` 无效 —— 属于 root 的 755 目录，对 www-data 只是可读可执行，不可写。
@@ -163,7 +163,11 @@ chown -R www-data:www-data /path/to/usr/plugins/AvatarCache
 
 旧版本（面板挂在独立顶级菜单或「设置」下）升级到本版后，重新启用一次即可自动清理：`registerPanel()` 会先遍历 `panelTable` 里**所有**菜单索引，删掉本插件的历史登记（含旧版 `addMenu()` 留下的空顶级菜单），再重新注册到「控制台」。
 
-如果仍然残留，说明数据库里的 `panelTable` 选项损坏了。可以在 `typecho_options` 表中找到 `name = 'panelTable'` 那条，确认 `file` 数组里是否还有 `AvatarCache%2Fmanage.php`：
+插件改名（`GravatarCache` → `AvatarCache` → `TypechoAvatarProxyCache`）也走同一套清理：`Plugin::LEGACY_PANEL_FILES` 里记录了旧名字，重新启用时会把 `AvatarCache%2Fmanage.php`、`GravatarCache%2Fmanage.php` 这些旧登记一起删掉。
+
+需要注意，**插件设置是按插件名存在 options 里的**，改名后等同于一个全新的插件，头像源、缓存目录等设置要用默认值重新填一次。旧记录仍留在 `typecho_options` 表里（`name` 形如 `plugin:AvatarCache`），确认不再需要后可以手动删除。
+
+如果仍然残留，说明数据库里的 `panelTable` 选项损坏了。可以在 `typecho_options` 表中找到 `name = 'panelTable'` 那条，确认 `file` 数组里是否还有 `TypechoAvatarProxyCache%2Fmanage.php`：
 
 ```sql
 SELECT value FROM typecho_options WHERE name = 'panelTable';
@@ -172,7 +176,7 @@ SELECT value FROM typecho_options WHERE name = 'panelTable';
 ## 目录结构
 
 ```
-usr/plugins/AvatarCache/
+usr/plugins/TypechoAvatarProxyCache/
 ├── Plugin.php           插件入口，生命周期 / 设置 / 缓存逻辑
 ├── Widget/
 │   └── Avatar.php       头像输出组件，由路由调用

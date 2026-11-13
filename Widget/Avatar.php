@@ -7,11 +7,11 @@
  * 处理顺序：本地缓存 → 回源 → 回源失败时降级（优先旧缓存，最后空白占位图）。
  */
 
-namespace TypechoPlugin\AvatarCache\Widget;
+namespace TypechoPlugin\TypechoAvatarProxyCache\Widget;
 
 use Typecho\Response;
 use Typecho\Widget;
-use TypechoPlugin\AvatarCache\Plugin as AvatarCache;
+use TypechoPlugin\TypechoAvatarProxyCache\Plugin as AvatarProxyCache;
 
 if (!defined('__TYPECHO_ROOT_DIR__')) {
     exit;
@@ -46,23 +46,23 @@ class Avatar extends Widget
 
         // 空邮箱走兜底路由 /gravatar-cache/，没有 hash 参数，统一按 md5('') 处理
         if ('' === $hash) {
-            $hash = AvatarCache::EMPTY_HASH;
+            $hash = AvatarProxyCache::EMPTY_HASH;
         }
 
-        $params = AvatarCache::normalizeParams(
+        $params = AvatarProxyCache::normalizeParams(
             $hash,
             (int) $this->request->get('s', 64),
             $this->request->get('r', null),
             $this->request->get('d', null)
         );
 
-        $settings = AvatarCache::settings();
+        $settings = AvatarProxyCache::settings();
 
         // 缓存开关关闭时退化为纯代理：不读旧缓存，也不写新缓存
-        $caching = AvatarCache::cacheEnabled();
+        $caching = AvatarProxyCache::cacheEnabled();
 
-        $paths = AvatarCache::cachePaths($params);
-        $cached = $caching ? AvatarCache::readCache($paths) : null;
+        $paths = AvatarProxyCache::cachePaths($params);
+        $cached = $caching ? AvatarProxyCache::readCache($paths) : null;
 
         // 1. 命中未过期缓存
         if (null !== $cached && $cached['fresh']) {
@@ -71,13 +71,13 @@ class Avatar extends Widget
         }
 
         // 2. 回源。失败冷却期内不再白白等超时，直接降级
-        if (!AvatarCache::inFailCooldown($paths)) {
-            $fetched = AvatarCache::fetchAvatar($params);
+        if (!AvatarProxyCache::inFailCooldown($paths)) {
+            $fetched = AvatarProxyCache::fetchAvatar($params);
 
             if (null !== $fetched) {
                 $ttl = (int) $settings['ttl'];
                 $now = time();
-                $written = $caching && AvatarCache::writeCache($paths, $fetched['body'], $fetched['mime'], $ttl);
+                $written = $caching && AvatarProxyCache::writeCache($paths, $fetched['body'], $fetched['mime'], $ttl);
 
                 // 写不进缓存说明目录权限有问题，此时插件退化成纯代理：
                 // 每次请求都回源，功能仍然可用，但要通过响应头暴露出来便于排查。
@@ -96,20 +96,20 @@ class Avatar extends Widget
                 return;
             }
 
-            AvatarCache::markFail($paths);
+            AvatarProxyCache::markFail($paths);
         }
 
         // 3. 降级：回源失败时一律优先用旧缓存，实在没有才返回空白占位图。
         //    降级本身说明头像源出了问题，写一条记录供后台面板提示异常。
         if (null !== $cached) {
             $served = $this->sendFile($paths, $cached, 'STALE', self::FALLBACK_MAX_AGE);
-            AvatarCache::recordFallback($served ? 'stale' : 'placeholder');
+            AvatarProxyCache::recordFallback($served ? 'stale' : 'placeholder');
             return;
         }
 
-        AvatarCache::recordFallback('placeholder');
+        AvatarProxyCache::recordFallback('placeholder');
 
-        $placeholder = AvatarCache::placeholder();
+        $placeholder = AvatarProxyCache::placeholder();
         $this->sendBody($placeholder['body'], $placeholder['mime'], 0, 'FALLBACK', self::FALLBACK_MAX_AGE);
     }
 
@@ -145,7 +145,7 @@ class Avatar extends Widget
 
         if (false === $body) {
             // 缓存文件刚好被并发清理掉，退化成占位图
-            $placeholder = AvatarCache::placeholder();
+            $placeholder = AvatarProxyCache::placeholder();
             $this->sendBody($placeholder['body'], $placeholder['mime'], 0, 'FALLBACK', self::FALLBACK_MAX_AGE);
             return false;
         }
