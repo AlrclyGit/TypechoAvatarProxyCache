@@ -38,7 +38,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
  *
  * @package TypechoAvatarProxyCache
  * @author 萧俊介
- * @version 2.0.0
+ * @version 2.3.2
  * @link https://www.alrcly.com/post/avatar-cache
  * @since 1.3.0
  */
