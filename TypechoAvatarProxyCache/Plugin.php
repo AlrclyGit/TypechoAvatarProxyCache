@@ -39,7 +39,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
  * @package TypechoAvatarProxyCache
  * @author 萧俊介
  * @version 2.3.2
- * @link https://www.alrcly.com/post/avatar-cache
+ * @link https://www.alrcly.com/post/avatar-proxy-cache.html
  * @since 1.3.0
  */
 class Plugin implements PluginInterface
